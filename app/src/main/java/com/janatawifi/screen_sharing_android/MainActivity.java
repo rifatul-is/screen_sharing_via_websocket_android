@@ -77,14 +77,6 @@ public class MainActivity extends AppCompatActivity {
         sendBtn = findViewById(R.id.send_btn);
         surfaceView = findViewById(R.id.surfaceView);
 
-
-        Intent intent = new Intent(this, ScreenCaptureService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Log.d("TAG", "Android Os : Grater Then Android Oreo");
-            startForegroundService(intent);
-            Log.d("TAG", "startForegroundService Function Executed");
-        }
-
         echo.run("ws://0.tcp.ap.ngrok.io:19057/ws");
 
 
@@ -115,10 +107,28 @@ public class MainActivity extends AppCompatActivity {
 //        });
     }
 
+
+
+
     public void requestScreenCapturePermission() {
         mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         Intent captureIntent = mediaProjectionManager.createScreenCaptureIntent();
+
+
+        //Starting Foreground Services
+        //Works Only Till Android 10
+        //Newer Implementation needed for Newer Android's
+        Intent intent = new Intent(this, ScreenCaptureService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Log.d("TAG", "Android OS : Grater Then Android Oreo");
+            startForegroundService(intent);
+            Log.d("TAG", "startForegroundService Function Executed");
+        }
+
+
+
         startActivityForResult(captureIntent, REQUEST_CODE_CAPTURE_PERMISSION);
+
     }
 
 
@@ -128,6 +138,11 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE_CAPTURE_PERMISSION) {
             if (resultCode == RESULT_OK && data != null) {
                 mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
+
+                // Register the callback
+                mediaProjection.registerCallback(mediaProjectionCallback, null);
+
+
                 if (mediaProjection != null) {
                     //initializeImageReader(getApplicationContext()); // Now safe to proceed with this
                     setUpVirtualDisplay();
@@ -139,6 +154,20 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
+    private final MediaProjection.Callback mediaProjectionCallback = new MediaProjection.Callback() {
+        @Override
+        public void onStop() {
+            super.onStop();
+            // Handle the projection stopping (e.g., release resources)
+            Log.e("MediaProjection", "MediaProjection has stopped. Release resources here.");
+            // Remember to unregister this callback when it's no longer needed.
+            if (mediaProjection != null) {
+                mediaProjection.unregisterCallback(this);
+                mediaProjection = null;
+            }
+        }
+    };
 
     private void setUpVirtualDisplay() {
         Log.d("TAG", "setUpVirtualDisplay: Inside");

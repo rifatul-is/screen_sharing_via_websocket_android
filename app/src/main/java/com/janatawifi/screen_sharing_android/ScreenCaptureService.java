@@ -11,6 +11,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.core.app.ServiceCompat;
 
 public class ScreenCaptureService extends Service {
     @Nullable
@@ -57,7 +58,7 @@ public class ScreenCaptureService extends Service {
                 .build();
 
         // Start foreground service
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         }
         else {
