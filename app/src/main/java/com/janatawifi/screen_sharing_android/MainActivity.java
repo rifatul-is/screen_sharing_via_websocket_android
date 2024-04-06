@@ -46,6 +46,7 @@ import android.Manifest;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+
 import android.view.WindowManager;
 
 
@@ -84,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d("TAG", "startForegroundService Function Executed");
         }
 
-        echo.run("ws://0.tcp.in.ngrok.io:11696/ws");
+        echo.run("ws://0.tcp.ap.ngrok.io:19057/ws");
 
 
         shareBtn.setOnClickListener(new View.OnClickListener() {
@@ -147,7 +148,8 @@ public class MainActivity extends AppCompatActivity {
         int screenWidth = metrics.widthPixels;
         int screenHeight = metrics.heightPixels;
         int screenDensity = metrics.densityDpi;
-
+        final long[] lastTimestamp = {0};
+        // Last time an image was processed
         //Log.d("TAG", "setUpVirtualDisplay: " + screenWidth + " " + screenHeight +  " " + screenDensity);
 
 //        int screenWidth = 1000;
@@ -167,28 +169,27 @@ public class MainActivity extends AppCompatActivity {
         Log.d("TAG", "setUpVirtualDisplay: Virtual display created");
 
         imageReader.setOnImageAvailableListener(reader -> {
-            Log.d("TAG", "onImageAvailable: listening to new images");
-            long lastTimestamp = 0; // Last time an image was processed
             long currentTime = System.currentTimeMillis();
+            Log.d("TAG", "onImageAvailable: listening to new images");
+
+            Log.d("TAG", "setUpVirtualDisplay: current time : " + currentTime);
+            Log.d("TAG", "setUpVirtualDisplay: last time stamp : " + lastTimestamp[0]);
 
             // Check if 5 seconds have passed since the last image was processed
-            if (currentTime - lastTimestamp >= 10000) {
                 Image image = null;
                 try {
                     image = reader.acquireLatestImage();
                     if (image != null) {
-                        Log.d("TAG", "onImageAvailable: aquired latest image " + image);
-                        // Process the image here
-                        Log.d("TAG", "setUpVirtualDisplay: image formate " + image.getFormat());
-                        Image.Plane[] planes = image.getPlanes();
-                        ByteBuffer buffer = planes[0].getBuffer();
-                        // For simplicity, assuming the image format is compatible
-                        byte[] data = new byte[buffer.remaining()];
-                        buffer.get(data);
-                        Log.d("TAG", "onImageAvailable: " + data.toString());
-                        //echo.sendMessage(data);
-
-
+                        if (currentTime - lastTimestamp[0] >= 2000) {
+                            Log.d("TAG", "onImageAvailable: aquired latest image " + image);
+                            // Process the image here
+                            Image.Plane[] planes = image.getPlanes();
+                            ByteBuffer buffer = planes[0].getBuffer();
+                            // For simplicity, assuming the image format is compatible
+                            byte[] data = new byte[buffer.remaining()];
+                            buffer.get(data);
+                            Log.d("TAG", "onImageAvailable: " + data.toString());
+                            //echo.sendMessage(data);
 
 
 //                    final Image.Plane[] planes = image.getPlanes();
@@ -202,18 +203,18 @@ public class MainActivity extends AppCompatActivity {
 //                    bmp.copyPixelsFromBuffer(buffer);
 
 
-                        Bitmap bitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
-                        ByteBuffer.wrap(data).rewind(); // Ensure the buffer is ready to be read
-                        bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(data));
+                            Bitmap bitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
+                            ByteBuffer.wrap(data).rewind(); // Ensure the buffer is ready to be read
+                            bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(data));
 
 ////creating base 64 from bitmap
-                        // Step 1: Compress the Bitmap
-                    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
-                    byte[] byteArray = byteArrayOutputStream.toByteArray();
-                    String encodedImage = Base64.encodeToString(byteArray, Base64.NO_WRAP);
-                    echo.sendMessage(encodedImage);
-                    Log.d("TAG", "setUpVirtualDisplay: base 64 image data" + encodedImage);
+                            // Step 1: Compress the Bitmap
+                            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
+                            byte[] byteArray = byteArrayOutputStream.toByteArray();
+                            String encodedImage = Base64.encodeToString(byteArray, Base64.NO_WRAP);
+                            echo.sendMessage(encodedImage);
+                            Log.d("TAG", "setUpVirtualDisplay: base 64 image data" + encodedImage);
 
 
 //Sacing bitmap to file
@@ -232,8 +233,12 @@ public class MainActivity extends AppCompatActivity {
 //                        }
 
 
-                        lastTimestamp = currentTime;
-                        image.close();
+                            lastTimestamp[0] = System.currentTimeMillis();
+                            Log.d("TAG", "setUpVirtualDisplay: last time inside image avilable " + lastTimestamp[0]);
+                            image.close();
+                        } else {
+                            Log.d("TAG", "setUpVirtualDisplay: Not time yet");
+                        }
 
 
                         //converting byte to bitmap to base 64
@@ -257,8 +262,7 @@ public class MainActivity extends AppCompatActivity {
 
 
                         // Now 'data' contains the raw frame data
-                    }
-                    else {
+                    } else {
                         Log.d("TAG", "onImageAvailable: image not avilable");
                     }
                 } finally {
@@ -266,12 +270,9 @@ public class MainActivity extends AppCompatActivity {
                         image.close();
                     }
                 }
-            }
 
         }, null);
     }
-
-
 
 
     private void startScreenShare(int resultCode, Intent data) {
@@ -296,7 +297,8 @@ public class MainActivity extends AppCompatActivity {
             mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        }
+        mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
 
         // Get the input surface from the encoder, and use it to create the virtual display
         Surface inputSurface = mediaCodec.createInputSurface();
@@ -322,7 +324,6 @@ public class MainActivity extends AppCompatActivity {
                     //echo.sendMessage(frame);
 
 
-
                     //sacing image from bytes
                     Context context = getApplicationContext(); // Get your context here (e.g., from an Activity or Application)
                     String fileName = "MyImage_" + System.currentTimeMillis() + ".jpg"; // Dynamic file name
@@ -337,9 +338,6 @@ public class MainActivity extends AppCompatActivity {
                     } catch (IOException e) {
                         Log.e("SaveImage", "Error saving image", e);
                     }
-
-
-
 
 
                 }
@@ -363,11 +361,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Set up the ImageReader
         //imageReader = ImageReader.newInstance(screenWidth, screenHeight, ImageFormat.JPEG, 2);
-
-
-
-
-
 
 
         int width = 1080; // Consider reducing if allocation fails
@@ -429,8 +422,7 @@ public class MainActivity extends AppCompatActivity {
                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                 if (bitmap == null) {
                     Log.e("Tag", "Failed to convert Image to Bitmap.");
-                }
-                else {
+                } else {
                     bitmap.compress(Bitmap.CompressFormat.JPEG, 50, outputStream);
                     byte[] imageBytes = outputStream.toByteArray();
 
